@@ -1,5 +1,6 @@
 const { Network: NetworkPOO} = require('./network')
 const { Network: NetworkMatriz } = require('./network_matriz')
+const Plotly = require('plotly.js')
 
 const nn = [2, 10, 10, 1]; // Now we have a hidden layer of 3
 
