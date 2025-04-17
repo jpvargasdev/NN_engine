@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Decision Surface - XOR</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+  <h2>🧠 XOR Decision Surface + XOR True Points</h2>
+  <div id="plot" style="width: 800px; height: 800px;"></div>
+
+  <script>
+    fetch('../predictions.json')
+      .then(res => res.json())
+      .then(data => {
+        const grid = data.filter(d => d.expected === undefined);
+        const points = data.filter(d => d.expected !== undefined);
+
+        const resolution = Math.sqrt(grid.length);
+        const x = [...new Set(grid.map(p => p.x))];
+        const y = [...new Set(grid.map(p => p.y))];
+
+        const z = [];
+        for (let i = 0; i < resolution; i++) {
+          const row = [];
+          for (let j = 0; j < resolution; j++) {
+            row.push(grid[i * resolution + j].z);
+          }
+          z.push(row);
+        }
+
+        const heatmap = {
+          x,
+          y,
+          z,
+          type: 'heatmap',
+          colorscale: 'YlGnBu',
+          name: 'Network Output',
+        };
+
+        const xorDots = {
+          x: points.map(p => p.x),
+          y: points.map(p => p.y),
+          mode: 'markers+text',
+          marker: {
+            size: 12,
+            color: points.map(p => p.expected),
+            colorscale: 'Jet',
+            cmin: 0,
+            cmax: 1,
+            colorbar: { title: 'Expected' }
+          },
+          text: points.map(p => `(${p.x}, ${p.y})`),
+          textposition: 'top center',
+          type: 'scatter',
+          name: 'XOR points'
+        };
+
+        Plotly.newPlot('plot', [heatmap, xorDots], {
+          title: 'Decision Surface - XOR',
+          xaxis: { title: 'X1' },
+          yaxis: { title: 'X2' }
+        });
+      });
+  </script>
+</body>
+</html>

@@ -1,126 +1,93 @@
-const utils = require("./utils");
-const { sigmoid, loss, dLoss } = utils;
+const math = require('mathjs');
+const { sigmoid, sigmoid_derivative } = require('./utils');
 
 class Network {
-  constructor(layers, inputs) {
-    this.mLayers = [];
-    for (let i = 0; i < layers.length; i++) {
-      const numInputs = layers[i - 1] || 0;
-      const numNeuros = layers[i];
-      if (i === 0) {
-        // first layer receives the inputs
-        this.mLayers.push(new Layer(numNeuros, inputs));
-      } else {
-        this.mLayers.push(new Layer(numNeuros, numInputs));
-      }
-    }
-  }
+  constructor(sizes) {
+    this.sizes = sizes
+    this.numLayers = sizes.length
+    this.weights = []
+    this.biases = []
+    this.a = []
+    this.deltas = new Array(this.numLayers).fill(null)
+    this.zs = []
 
-  forward(inputs) {
-    let activations = inputs;
-    this.mLayers.forEach((layer) => {
-      activations = layer.forward(activations);
-    })
-    return activations
-  }
+    this.sizes.slice(0, -1).forEach((size, index) => {
+      const rows = this.sizes[index + 1];
+      const cols = size;
 
-  train(inputs, yTrue, learningRate) {
-    this.forward(inputs);
-    for (let i = this.mLayers.length - 1; i >= 0; i--) {
-      const layer = this.mLayers[i];
-
-      if (i === this.mLayers.length - 1) {
-        // Output layer
-        layer.neurons.forEach((neuron, j) => {
-          neuron.backward(yTrue[j], learningRate, true);
-        });
-      } else {
-        const nextLayer = this.mLayers[i + 1];
-        layer.neurons.forEach((neuron) => {
-          neuron.backward(nextLayer, learningRate, false);
-        });
-      }
-    }  
-
-    return this.mLayers[this.mLayers.length - 1].neurons.map((neuron) => {
-      return neuron.a;
-    })
-  }
-}
-
-class Layer {
-  constructor(neurons, inputs) {
-    this.neurons = [];
-    this.numInputs = inputs;
-    this.inputs = inputs;
-    for (let i = 0; i < neurons; i++) {
-      const neuron = new Neuron(inputs);
-      neuron.index = i; // 📌 Needed for hidden layer delta calculation
-      this.neurons.push(neuron);
-    }
-  }
-
-  forward(inputs) {
-    this.inputs = inputs;
-    return this.neurons.map((neuron) => {
-      return neuron.activate(this.inputs);
+      const W = math.random([rows, cols], -1, 1);
+      const b = math.random([rows, 1], -1, 1);
+     
+      this.weights.push(W);
+      this.biases.push(b);
     })
   } 
+
+  forward(inputs) {
+    this.a = [inputs];
+    this.zs = []
+    let nextActivation = inputs
+
+    this.weights.forEach((weight, index) => {
+      const z = math.add(math.multiply(weight, nextActivation), this.biases[index]);
+      const a = z.map(([val]) => [sigmoid(val)]);
+      this.zs.push(z);
+      this.a.push(a);
+      nextActivation = a
+    })
+
+    return this.a[this.a.length - 1];
+  }
+
+  backward(y) {
+    // 1 - calculate error in output layer
+    const L = this.numLayers - 1;
+    const yHat = this.a[this.a.length - 1];
+    const delta_output = math.dotMultiply(
+      math.subtract(yHat, y),
+      yHat.map(([val]) => [val * (1 - val)])
+    );
+
+    this.deltas[L] = delta_output;
+
+    // 2 - propagate error backwards
+    for (let layerIndex = L - 1; layerIndex > 0; layerIndex--) {
+      const W_next_T = math.transpose(this.weights[layerIndex]);
+      const delta_next = this.deltas[layerIndex + 1]; 
+      const z = this.zs[layerIndex - 1];
+      const ad = z.map(([val]) => [sigmoid_derivative(val)]);
+
+      const delta = math.dotMultiply(
+        math.multiply(W_next_T, delta_next),
+        ad
+      );
+      this.deltas[layerIndex] = delta;
+    }
+  }
+
+  updateWeights(learningRate) {
+    const L = this.numLayers - 1;
+
+    for (let layerIndex = L - 1; layerIndex >= 1; layerIndex--) {
+      const delta = this.deltas[layerIndex];
+      const a_prev = this.a[layerIndex - 1];
+
+      const dW = math.multiply(delta, math.transpose(a_prev));
+      const db = delta;
+
+      this.weights[layerIndex - 1] = math.subtract(this.weights[layerIndex - 1], math.multiply(learningRate, dW));
+      this.biases[layerIndex - 1] = math.subtract(this.biases[layerIndex - 1], math.multiply(learningRate, db));
+    }
+  }
+
+  train(inputs, y, learningRate) {
+    this.forward(inputs);
+    this.backward(y);
+    this.updateWeights(learningRate);
+    return this.a[this.a.length - 1];
+  }
 }
-
-class Neuron {
-  constructor(numInputs) {
-    this.z = 0;
-    this.yHat = 0;
-    this.delta = 0;
-    this.weights = Array.from({ length: numInputs }, () => Math.random() * 2 - 1);
-    this.bias = Math.random() * 2 - 1;
-  }
-
-  activate(inputs) {
-    this.inputs = inputs;
-    this.z = 0;
-    this.a = 0;
-    if (this.weights.length === inputs.length) {
-      this.weights.forEach((weight, index) => {
-        this.z += weight * inputs[index];
-      })
-      this.z += this.bias;
-      this.a = sigmoid(this.z);
-    }
-
-    return this.a
-  }
-  
-  backward(targetOrNextLayer, learningRate, isOutputLayer = false) {
-    if (isOutputLayer) {
-      const dL_da = dLoss(this.a, targetOrNextLayer);
-      const dA_dz = this.a * (1 - this.a);
-      this.delta = dL_da * dA_dz;
-    } else {
-      let sum = 0;
-      // O(n)
-      for (let j = 0; j < targetOrNextLayer.neurons.length; j++) {
-        const nextLayerNeuron = targetOrNextLayer.neurons[j];
-        sum += nextLayerNeuron.weights[this.index] * nextLayerNeuron.delta;
-      }
-
-      const dA_dZ = this.a * (1 - this.a);
-      this.delta = sum * dA_dZ;
-    }
-
-    // O(n)
-    for (let i = 0; i < this.weights.length; i++) {
-      this.weights[i] -= learningRate * this.delta * this.inputs[i];
-    }
-
-    // Update bias: b = b - α * ∂L/∂z
-    this.bias -= learningRate * this.delta;
-  }
-}
-
 module.exports = {
   Network
 }
-
 

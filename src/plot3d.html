@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>XOR 3D Surface</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+  <h2>🧠 XOR - Superficie 3D</h2>
+  <div id="plot3d" style="width: 800px; height: 800px;"></div>
+
+  <script>
+    fetch('../predictions.json')
+      .then(res => res.json())
+      .then(data => {
+        const grid = data.filter(d => d.expected === undefined);
+        const resolution = Math.sqrt(grid.length);
+        const x = [...new Set(grid.map(p => p.x))];
+        const y = [...new Set(grid.map(p => p.y))];
+
+        // Z values
+        const z = [];
+        for (let i = 0; i < resolution; i++) {
+          const row = [];
+          for (let j = 0; j < resolution; j++) {
+            row.push(grid[i * resolution + j].z);
+          }
+          z.push(row);
+        }
+
+        const surface = {
+          x,
+          y,
+          z,
+          type: 'surface',
+          colorscale: 'YlGnBu',
+          name: 'Prediction Surface',
+        };
+
+        Plotly.newPlot('plot3d', [surface], {
+          title: 'Decision Surface (3D) - XOR',
+          scene: {
+            xaxis: { title: 'X1' },
+            yaxis: { title: 'X2' },
+            zaxis: { title: 'Output (z)' }
+          }
+        });
+      });
+  </script>
+</body>
+</html>
