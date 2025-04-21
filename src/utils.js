@@ -14,11 +14,35 @@ function dLoss(yHat, y) {
   return 2 * (yHat - y);
 }
 
+function crossEntropyError(yHat, y) {
+  const epsilon = 1e-12;
+  const a = Math.min(Math.max(yHat, epsilon), 1 - epsilon); 
+  return -(y * Math.log(a) + (1 - y) * Math.log(1 - a));
+}
+
+function dCrossEntropy(yHat, y) {
+  const epsilon = 1e-12;
+  const a = Math.min(Math.max(yHat, epsilon), 1 - epsilon);
+  return (a - y) / (a * (1 - a));
+}
+
+function relu(x) {
+  return Math.max(0, x);
+}
+
+function dRelu(x) {
+  return x > 0 ? 1 : 0;
+}
+
 module.exports = {
   sigmoid,
   sigmoid_derivative,
   loss,
-  dLoss
+  dLoss,
+  crossEntropyError,
+  dCrossEntropy,
+  relu,
+  dRelu
 }
 
 

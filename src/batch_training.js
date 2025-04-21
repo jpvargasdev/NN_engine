@@ -1,6 +1,7 @@
 const { Network } = require('./network');
 const math = require('mathjs');
 const { generateGrid } = require('./generate_grid');
+const { crossEntropyError } = require('./utils');
 
 const data = [
   { input: [[0], [0]], output: [[0]] },
@@ -20,10 +21,14 @@ function trainBatch(network, batchSize, learningRate) {
 
       let batchLoss = 0;
       batch.forEach(({ input, output }) => {
+        // const prediction = network.train(input, output, learningRate);
+        // const diff = math.subtract(prediction, output);
+        // const squared = math.map(diff, val => val * val);
+        // batchLoss += math.sum(squared);
+        //
         const prediction = network.train(input, output, learningRate);
-        const diff = math.subtract(prediction, output);
-        const squared = math.map(diff, val => val * val);
-        batchLoss += math.sum(squared);
+        const loss = crossEntropyError(prediction, output);
+        batchLoss += loss;
       });
 
       totalLoss += batchLoss;
