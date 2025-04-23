@@ -75,18 +75,27 @@ class Network2 {
     }
   }
 
-  updateWeights(learningRate) {
+  updateWeights(learningRate, lambda = 0.5) {
     const L = this.numLayers - 1;
-
-    for (let layerIndex = L - 1; layerIndex >= 1; layerIndex--) {
+      for (let layerIndex = L - 1; layerIndex >= 1; layerIndex--) {
       const delta = this.deltas[layerIndex];
       const a_prev = this.a[layerIndex - 1];
 
       const dW = math.multiply(delta, math.transpose(a_prev));
       const db = delta;
 
-      this.weights[layerIndex - 1] = math.subtract(this.weights[layerIndex - 1], math.multiply(learningRate, dW));
-      this.biases[layerIndex - 1] = math.subtract(this.biases[layerIndex - 1], math.multiply(learningRate, db));
+      // L2 regularization
+      const regTerm = math.multiply(lambda, this.weights[layerIndex - 1]);
+      const dw_with_reg = math.add(dW, regTerm);
+
+      this.weights[layerIndex - 1] = math.subtract(
+        this.weights[layerIndex - 1],
+        math.multiply(learningRate, dw_with_reg)
+      );
+      this.biases[layerIndex - 1] = math.subtract(
+        this.biases[layerIndex - 1],
+        math.multiply(learningRate, db)
+      );
     }
   }
 
