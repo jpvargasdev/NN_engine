@@ -1,12 +1,7 @@
-# $ export PATH="${HOME}/miniconda3/bin:${PATH}"
-# $ source ${HOME}/miniconda3/bin/activate
-# $ lvim .
-
 import numpy as np
 import matplotlib.pyplot as plt
-from utils import cross_entropy_loss, one_hot_encode
+from utils import cross_entropy_loss, one_hot_encode, plot_accuracy_over_time, plot_loss, show_predictions
 from modelNN import Network
-from modelCNN import NetworkCNN
 
 train_data = np.loadtxt('./dataset/mnist_test.csv', delimiter=',', skiprows=1)
 test_data = np.loadtxt('./dataset/mnist_test.csv', delimiter=',', skiprows=1)
@@ -16,7 +11,6 @@ Y = train_data[:, 0].astype(int)
 X_test = test_data[:, 1:] / 255.0
 Y_test = test_data[:, 0].astype(int)
 
-
 X = X.T                              
 Y = Y.reshape(1, -1)             
 Y = one_hot_encode(Y)            
@@ -25,18 +19,7 @@ X_test = X_test.T
 Y_test = Y_test.reshape(1, -1)
 Y_test_encoded = one_hot_encode(Y_test)
 
-conv_kernels = [
-    np.random.randn(3, 3),
-    np.random.randn(3, 3),
-    np.random.randn(3, 3),
-]
-input_shape = (28 - 2) // 2
-input_size = input_shape * input_shape * len(conv_kernels)
-dense_sizes = [64, 10]
-
-
-model = NetworkCNN(conv_kernels, dense_sizes, input_size)
-# model = Network(layers=[784, 64, 10], activation_function='relu')
+model = Network(layers=[784, 64, 10], activation_function='relu')
 
 batch_size = 64
 epochs = 300
@@ -57,7 +40,7 @@ for epoch in range(epochs):
         if X_batch.shape[1] == 0:
             continue
 
-        output  = model.train(X_batch, Y_batch, learning_rate)
+        output = model.train(X_batch, Y_batch, learning_rate)
 
     if epoch % 100 == 0:
         predictions = model.forward(X)
@@ -65,29 +48,21 @@ for epoch in range(epochs):
         loss_history.append(loss)
         print(f"Epoch {epoch}, Loss: {loss:.6f}")
 
-        if (loss < 0.1): 
-            break
-
 predictions = model.forward(X_test)
 pred_labels = np.argmax(predictions, axis=0)
 true_labels = np.argmax(Y_test_encoded, axis=0)
 
-def show_prediction(image, true_label, pred_label):
-    plt.imshow(image.reshape(28, 28), cmap='gray')
-    plt.title(f" Prediction: {pred_label}  |  Real: {true_label}")
-    plt.axis('off')
-    plt.show()
+test_size = 20
 
-predictions = model.forward(X_test)
-pred_labels = np.argmax(predictions, axis=0)
-true_labels = np.argmax(Y_test_encoded, axis=0)
-
-N = 20
-
-for i in range(N):
+for i in range(test_size):
     pred = pred_labels[i]
     real = true_labels[i]
     status = "✅" if pred == real else "❌"
     print(f"🖼 Imagen {i:02d} → {status} Real: {real} | Predicho: {pred}")
 
+accuracy = np.mean(np.array(pred_labels) == true_labels)
+print(f"\n🎯 Precisión sobre {20} imágenes: {accuracy * 100:.2f}%")
 
+show_predictions(X_test[:test_size], true_labels, pred_labels)
+plot_loss(loss_history)
+plot_accuracy_over_time(acc_history=loss_history)

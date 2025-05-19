@@ -1,101 +1,144 @@
 import numpy as np
-from utils import conv2d, max_pool2d, relu, flatten_feature_maps, softmax, relu_derivative, cross_entropy_loss
+from utils import conv2d, max_pool2d, relu, flatten_feature_maps, softmax, relu_derivative, cross_entropy_loss, unpool2d
 
 class NetworkCNN:
-    def __init__(self, conv_kernels, dense_sizes, input_shape):
+    def __init__(self, conv_kernels, dense_sizes, input_size):
+        """
+        conv_kernels: list of numpy arrays (e.g. 3x3 filters)
+        dense_sizes: list like [64, 10]
+        input_size: flattened size after pooling (e.g. 13*13*3 = 507)
+        """
+
+        # --- Convolution ---
+        self.kernels = conv_kernels                    # list of 2D filters
         self.num_kernels = len(conv_kernels)
-        self.kernels = conv_kernels
+
+        # --- Dense layers ---
         self.dense_sizes = dense_sizes
-
-        # Start weights and biases for dense layers
         self.weights = []
-        self.biases
+        self.biases = []
 
-        # Start weights and biases for convolutional layers
-        prev_size = input_shape
+        prev_size = input_size  # size of flattened pooled features
 
         for size in dense_sizes:
+            # He initialization
             w = np.random.randn(size, prev_size) * np.sqrt(2. / prev_size)
             b = np.zeros((size, 1))
             self.weights.append(w)
             self.biases.append(b)
             prev_size = size
 
+        # --- Placeholders for intermediate values (forward) ---
+        self.input = None
+        self.feature_maps = []
+        self.pooled_maps = []
+        self.pool_indices = []
+        self.flat = None
+        self.zs = []            # z = Wx + b pre-activations
+        self.activations = []   # activations for each layer
+
     
         
     def forward(self, x):
-        self.input = x
-        self.feature_maps = [relu(conv2d(x, k)) for k in self.kernels]
-        self.pooled_maps = [max_pool2d(fm) for fm in self.feature_maps]
+        """
+        x: input image of shape (H, W)
+        Returns: output probabilities (softmax)
+        """
+        self.input = x  # Save input for backprop
 
-        self.flat = flatten_feature_maps(self.pooled_maps)
+        # --- Convolution → ReLU ---
+        self.feature_maps = [relu(conv2d(x, kernel)) for kernel in self.kernels]
+
+        # --- Max Pooling ---
+        self.pooled_maps = []
+        self.pool_indices = []
+        for fmap in self.feature_maps:
+            pooled, indices = max_pool2d(fmap)
+            self.pooled_maps.append(pooled)
+            self.pool_indices.append(indices)
+
+        # --- Flatten pooled maps ---
+        self.flat = flatten_feature_maps(self.pooled_maps)  # shape: (N, 1)
+
+        # --- Dense layers ---
         self.zs = []
         self.activations = [self.flat]
 
         a = self.flat
-        for W, b in zip(self.weights, self.biases):
+        for idx, (W, b) in enumerate(zip(self.weights, self.biases)):
             z = np.dot(W, a) + b
-            a = softmax(z) if W is not self.weights[-1] else relu(z)
+            a = relu(z) if idx < len(self.weights) - 1 else softmax(z)
             self.zs.append(z)
             self.activations.append(a)
 
-        return a
+        return a  # softmax output
     
     def backward(self, y_true, learning_rate):
+        """
+        Backpropagation through dense layers and convolutional kernels.
+        y_true: (10, 1) — one-hot label
+        """
+
+        # --- Paso 1: error en capa de salida (softmax + cross-entropy) ---
+        L = len(self.weights)
+        y_hat = self.activations[-1]
+        delta = y_hat - y_true  # (10, 1)
+
+        # --- Paso 2: calcular gradientes de capas densas ---
         grads_w = [np.zeros_like(W) for W in self.weights]
         grads_b = [np.zeros_like(b) for b in self.biases]
 
-        # Backpropagation dense layers
-        L = len(self.weights)
-        delta = self.activations[-1] - y_true
-
         for l in reversed(range(L)):
-            grads_w[l] = np.dot(delta, self.activations[l].T)
+            a_prev = self.activations[l]  # activación anterior
+            grads_w[l] = np.dot(delta, a_prev.T)
             grads_b[l] = delta
 
             if l > 0:
-                delta = np.dot(self.weights[l].T, delta) * relu_derivative(self.zs[l - 1])
+                z_prev = self.zs[l - 1]
+                delta = np.dot(self.weights[l].T, delta) * relu_derivative(z_prev)
+                delta = np.nan_to_num(delta, nan=0.0, posinf=1e12, neginf=-1e12)
 
-        # update weights and biases
-        for l in range(L):
-            self.weights[l] -= learning_rate * grads_w[l]
-            self.biases[l] -= learning_rate * grads_b[l]
-
-        # Backpropagation convolutional layers 
+        # --- Paso 3: retropropagar hacia los feature maps (desde capa densa a flatten) ---
+        delta = np.dot(self.weights[0].T, delta)  # (507, 1)
         grad_flat = delta
 
-        # Revert flattn to get gradients for feature maps
+        # --- Paso 4: aplicar actualizaciones en capas densas ---
+        for l in range(L):
+            self.weights[l] -= learning_rate * grads_w[l]
+            self.biases[l]  -= learning_rate * grads_b[l]
+
+        # --- Paso 5: reconstruir los pooled_grads desde grad_flat ---
         pooled_grads = []
         idx = 0
         for pm in self.pooled_maps:
             size = pm.size
-            grad = grad_flat[id:idx+size].reshape(pm.shape)
+            grad_slice = grad_flat[idx:idx + size]
+            grad = grad_slice.reshape(pm.shape)
             pooled_grads.append(grad)
             idx += size
-        
-        # Revert max pooling
-        relu_grads = []
-        for grad, fmap in zip(pooled_grads, self.feature_maps):
-            h, w = fmap.shape
-            unpooled = np.zeros((h, w))
-            for (i, j, (pi, pj)) in self.pool_indices:
-                unpooled[i*2 + pi, j*2 + pj] = grad[i, j] # Pool size is 2x2, stride is 2
-            relu_grads.append(unpooled * relu_derivative(fmap))
 
-        # Derivative respect each kernel
+        # --- Paso 6: unpooling y ReLU backward ---
+        relu_grads = []
+        for grad, fmap, indices in zip(pooled_grads, self.feature_maps, self.pool_indices):
+            unpooled = unpool2d(grad, indices, fmap.shape)
+            relu_back = unpooled * relu_derivative(fmap)
+            relu_grads.append(relu_back)
+
+        # --- Paso 7: calcular y aplicar gradientes a cada kernel ---
         for i in range(len(self.kernels)):
-            input_patch = self.input
             kernel_grad = np.zeros_like(self.kernels[i])
+            grad_map = relu_grads[i]
+            input_patch = self.input  # imagen original
             kh, kw = self.kernels[i].shape
+
             for r in range(kernel_grad.shape[0]):
                 for c in range(kernel_grad.shape[1]):
-                    region = input_patch[r:r+relu_grads[i].shape[0], c:c+relu_grads[i].shape[1]]
-                    if region.shape == relu_grads[i].shape:
-                        kernel_grad[r, c] = np.sum(region * relu_grads[i])
+                    region = input_patch[r:r+grad_map.shape[0], c:c+grad_map.shape[1]]
+                    if region.shape == grad_map.shape:
+                        kernel_grad[r, c] = np.sum(region * grad_map)
+
             self.kernels[i] -= learning_rate * kernel_grad
         
-        return self.kernels
-    
     def train(self, x, y, learning_rate):
         output = self.forward(x)
         loss = cross_entropy_loss(output, y)

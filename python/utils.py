@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 def sigmoid(x):
     x = np.clip(x, -500, 500)
@@ -31,6 +32,14 @@ def cross_entropy_loss(y_hat, y_true):
     y_hat_clipped = np.clip(y_hat, epsilon, 1. - epsilon)
     loss = -np.sum(y_true * np.log(y_hat_clipped)) / m
     return loss
+
+def one_hot_encode_cnn(y, num_classes=10):
+    if y.ndim == 2:
+        y = y.flatten()
+    m = y.shape[0]
+    one_hot = np.zeros((m, num_classes))
+    one_hot[np.arange(m), y] = 1
+    return one_hot
 
 def one_hot_encode(y, num_classes=10):
     m = y.shape[1]
@@ -74,29 +83,80 @@ def conv2d(input, kernel, stride=1, padding=0):
 
     return output
 
-def max_pool2d(input, kernel_size=2, stride=2):
-    """
-    Apply Max pooling 2d on an 2d array (one layer)
+def max_pool2d(feature_map, size=2, stride=2):
+    h, w = feature_map.shape
+    out_h = (h - size) // stride + 1
+    out_w = (w - size) // stride + 1
+    pooled = np.zeros((out_h, out_w))
+    indices = {}  # guardaremos (i, j) → (pi, pj)
 
-    Args:
-        input: Input matrix
-        kernel_size: Size of the kernel
-        stride: Stride of the pooling
+    for i in range(out_h):
+        for j in range(out_w):
+            patch = feature_map[i*stride:i*stride+size, j*stride:j*stride+size]
+            max_val = np.max(patch)
+            max_pos = np.unravel_index(np.argmax(patch), patch.shape)  # (pi, pj)
+            pooled[i, j] = max_val
+            indices[(i, j)] = max_pos  # ✅ esto es clave
 
-    Returns:
-        Output matrix after pooling
-    """
-    h, w = input.shape
-    oh = (h - kernel_size) // stride + 1
-    ow = (w - kernel_size) // stride + 1
-
-    output = np.zeros((oh, ow))
-    for i in range(oh):
-        for j in range(ow):
-            region = input[i*stride : i*stride+kernel_size, j*stride : j*stride+kernel_size]
-            output[i, j] = np.max(region)
-
-    return output
+    return pooled, indices
 
 def flatten_feature_maps(feature_maps):
-    return np.concatenate([fm.flatten() for fm in feature_maps], axis=0)
+    return np.vstack([fm.flatten().reshape(-1, 1) for fm in feature_maps])
+
+def show_predictions(X, Y_true, Y_pred, n=20):
+    plt.figure(figsize=(15, 4))
+    for i in range(n):
+        plt.subplot(2, n // 2, i + 1)
+        plt.imshow(X[i], cmap='gray')
+        plt.axis('off')
+        color = 'green' if Y_true[i] == Y_pred[i] else 'red'
+        plt.title(f"P:{Y_pred[i]} / T:{Y_true[i]}", color=color)
+    plt.tight_layout()
+    plt.show()
+
+def plot_loss(loss_history):
+    plt.plot(loss_history)
+    plt.title("Training Loss")
+    plt.xlabel("Epoch (logged)")
+    plt.ylabel("Loss")
+    plt.grid(True)
+    plt.show()
+
+def plot_accuracy_over_time(acc_history):
+    plt.plot(acc_history)
+    plt.title("Test Accuracy")
+    plt.xlabel("Epoch")
+    plt.ylabel("Accuracy")
+    plt.grid(True)
+    plt.show()
+
+def unpool2d(pooled_grad, indices, original_shape, size=2, stride=2):
+    """
+    pooled_grad: gradiente de salida del max_pool (shape: pooled feature map)
+    indices: dict de (i, j) → (pi, pj) con la posición del máximo original
+    original_shape: shape del feature map original antes del pooling
+    """
+    h, w = original_shape
+    unpooled = np.zeros((h, w))
+
+    for (i, j), (pi, pj) in indices.items():
+        row = i * stride + pi
+        col = j * stride + pj
+        unpooled[row, col] = pooled_grad[i, j]
+
+    return unpooled
+
+def show_kernels(kernels):
+    """
+    Muestra una visualización de los kernels convolucionales (filtros).
+    """
+    num_kernels = len(kernels)
+    plt.figure(figsize=(2 * num_kernels, 2))
+    for i, kernel in enumerate(kernels):
+        plt.subplot(1, num_kernels, i + 1)
+        plt.imshow(kernel, cmap='gray')
+        plt.title(f"Kernel {i}")
+        plt.axis('off')
+    plt.tight_layout()
+    plt.show()
+    
