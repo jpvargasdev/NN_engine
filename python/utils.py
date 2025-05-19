@@ -97,3 +97,6 @@ def max_pool2d(input, kernel_size=2, stride=2):
             output[i, j] = np.max(region)
 
     return output
+
+def flatten_feature_maps(feature_maps):
+    return np.concatenate([fm.flatten() for fm in feature_maps], axis=0)

@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from utils import cross_entropy_loss, one_hot_encode
 from modelNN import Network
+from modelCNN import NetworkCNN
 
 train_data = np.loadtxt('./dataset/mnist_test.csv', delimiter=',', skiprows=1)
 test_data = np.loadtxt('./dataset/mnist_test.csv', delimiter=',', skiprows=1)
@@ -24,7 +25,18 @@ X_test = X_test.T
 Y_test = Y_test.reshape(1, -1)
 Y_test_encoded = one_hot_encode(Y_test)
 
-model = Network(layers=[784, 64, 10], activation_function='relu')
+conv_kernels = [
+    np.random.randn(3, 3),
+    np.random.randn(3, 3),
+    np.random.randn(3, 3),
+]
+input_shape = (28 - 2) // 2
+input_size = input_shape * input_shape * len(conv_kernels)
+dense_sizes = [64, 10]
+
+
+model = NetworkCNN(conv_kernels, dense_sizes, input_size)
+# model = Network(layers=[784, 64, 10], activation_function='relu')
 
 batch_size = 64
 epochs = 300
@@ -45,7 +57,7 @@ for epoch in range(epochs):
         if X_batch.shape[1] == 0:
             continue
 
-        output = model.train(X_batch, Y_batch, learning_rate)
+        output  = model.train(X_batch, Y_batch, learning_rate)
 
     if epoch % 100 == 0:
         predictions = model.forward(X)

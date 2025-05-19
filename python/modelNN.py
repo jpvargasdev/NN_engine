@@ -26,7 +26,7 @@ class Network:
             self.zs.append(z)
 
             if i == self.num_layers - 2:
-                # Última capa: softmax
+                # Last layer: softmax
                 a = softmax(z)
             else:
                 if self.activation_function == 'relu':
