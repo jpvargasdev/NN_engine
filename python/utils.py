@@ -39,3 +39,61 @@ def one_hot_encode(y, num_classes=10):
         label = y[0, i]
         one_hot[label, i] = 1
     return one_hot
+
+def conv2d(input, kernel, stride=1, padding=0):
+    """
+        2D Convolution (single channel) - no libraries
+
+        Args:
+            input: Input matrix
+            kernel: Kernel matrix
+            stride: Stride of the convolution
+            padding: Padding of the convolution
+
+        Returns:
+            Output matrix after convolution 2D
+    """
+
+    # Padding
+    if padding > 0:
+        input = np.pad(input, ((padding, padding), (padding, padding)), mode='constant', constant_values=0)
+
+    # Convolution
+    h, w = input.shape
+    kh, kw = kernel.shape
+
+    oh = (h - kh) // stride + 1
+    ow = (w - kw) // stride + 1
+
+    output = np.zeros((oh, ow))
+    for i in range(oh):
+        for j in range(ow):
+            # region = input[i*stride : i*stride+kh, j*stride : j*stride+kw]
+            region = input[i*stride : i*stride+kh, j*stride : j*stride+kw]
+            output[i, j] = np.sum(region * kernel)
+
+    return output
+
+def max_pool2d(input, kernel_size=2, stride=2):
+    """
+    Apply Max pooling 2d on an 2d array (one layer)
+
+    Args:
+        input: Input matrix
+        kernel_size: Size of the kernel
+        stride: Stride of the pooling
+
+    Returns:
+        Output matrix after pooling
+    """
+    h, w = input.shape
+    oh = (h - kernel_size) // stride + 1
+    ow = (w - kernel_size) // stride + 1
+
+    output = np.zeros((oh, ow))
+    for i in range(oh):
+        for j in range(ow):
+            region = input[i*stride : i*stride+kernel_size, j*stride : j*stride+kernel_size]
+            output[i, j] = np.max(region)
+
+    return output

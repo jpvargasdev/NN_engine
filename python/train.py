@@ -1,7 +1,11 @@
+# $ export PATH="${HOME}/miniconda3/bin:${PATH}"
+# $ source ${HOME}/miniconda3/bin/activate
+# $ lvim .
+
 import numpy as np
 import matplotlib.pyplot as plt
 from utils import cross_entropy_loss, one_hot_encode
-from model import Network
+from modelNN import Network
 
 train_data = np.loadtxt('./dataset/mnist_test.csv', delimiter=',', skiprows=1)
 test_data = np.loadtxt('./dataset/mnist_test.csv', delimiter=',', skiprows=1)
@@ -48,6 +52,9 @@ for epoch in range(epochs):
         loss = cross_entropy_loss(predictions, Y)
         loss_history.append(loss)
         print(f"Epoch {epoch}, Loss: {loss:.6f}")
+
+        if (loss < 0.1): 
+            break
 
 predictions = model.forward(X_test)
 pred_labels = np.argmax(predictions, axis=0)
