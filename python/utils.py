@@ -16,6 +16,18 @@ def relu_derivative(x):
     return np.where(x > 0, 1, 0)
 
 def softmax(z):
+    """
+    Computes the softmax function for the given input array.
+
+    The softmax function is often used in the final layer of a neural network
+    when the task is a multi-class classification problem.
+
+    Parameters:
+        z (numpy.ndarray): The input array.
+
+    Returns:
+        numpy.ndarray: The softmax output of the input array.
+    """
     z = np.nan_to_num(z)  # 🔥 Reemplaza nan e inf por 0
     z_shift = z - np.max(z, axis=0, keepdims=True)  # Evitar overflow
     exp_z = np.exp(z_shift)
